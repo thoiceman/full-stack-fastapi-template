@@ -12,21 +12,27 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """应用配置：字段名与环境变量 / .env 键名对应，实例化时自动注入。"""
+
     model_config = SettingsConfigDict(
-        # Use top level .env file (one level above ./backend/)
+        # 相对本文件定位到仓库根目录 .env；也可被进程环境变量覆盖
         env_file="../.env",
-        env_ignore_empty=True,
-        extra="ignore",
+        env_ignore_empty=True,  # 空字符串当作未设置
+        extra="ignore",  # .env 里多出来的键忽略，不报错
     )
+
+    # —— API / 安全 ——
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str
+    SECRET_KEY: str  # JWT 签名密钥，必填（来自 .env）
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
-    FRONTEND_HOST: str = "http://localhost:5173"
-    FASTAPI_ENV: Literal["development"] | None = None
+    FRONTEND_HOST: str = "http://localhost:5173"  # CORS 允许的前端源
+    FASTAPI_ENV: Literal["development"] | None = None  # development 下放宽密钥校验
 
-    PROJECT_NAME: str
+    PROJECT_NAME: str  # 文档标题、邮件展示名等
     SENTRY_DSN: HttpUrl | None = None
+
+    # —— Postgres（拼成 SQLALCHEMY_DATABASE_URI）——
     POSTGRES_SERVER: str
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str
@@ -36,6 +42,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
+        # 由上面 POSTGRES_* 组装，供 SQLModel/SQLAlchemy 使用
         return PostgresDsn.build(
             scheme="postgresql+psycopg",
             username=self.POSTGRES_USER,
@@ -45,6 +52,7 @@ class Settings(BaseSettings):
             path=self.POSTGRES_DB,
         )
 
+    # —— 邮件（开发可用远程/本地 Mailcatcher）——
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
     SMTP_PORT: int = 587
@@ -56,6 +64,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _set_default_emails_from(self) -> Self:
+        # 未单独配置发件人名称时，沿用项目名
         if not self.EMAILS_FROM_NAME:
             self.EMAILS_FROM_NAME = self.PROJECT_NAME
         return self
@@ -68,10 +77,11 @@ class Settings(BaseSettings):
         return bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
 
     EMAIL_TEST_USER: EmailStr = "test@example.com"
-    FIRST_SUPERUSER: EmailStr
+    FIRST_SUPERUSER: EmailStr  # 首次启动创建的管理员
     FIRST_SUPERUSER_PASSWORD: str
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
+        # 禁止生产环境继续使用模板默认口令 changethis
         if value == "changethis":
             message = (
                 f'The value of {var_name} is "changethis", '
@@ -93,4 +103,5 @@ class Settings(BaseSettings):
         return self
 
 
+# import 时即加载配置；缺必填项会在这里报错
 settings = Settings()  # type: ignore

@@ -10,5 +10,6 @@ api_router.include_router(utils.router)
 api_router.include_router(items.router)
 
 
+# 仅开发环境挂载：提供无鉴权的测试用接口（如直接创建用户），生产不可用
 if settings.FASTAPI_ENV == "development":
     api_router.include_router(private.router)

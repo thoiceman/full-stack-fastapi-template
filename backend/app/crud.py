@@ -43,15 +43,18 @@ DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$MjQyZWE1MzBjYjJlZTI0Yw$YTU4NGM5ZTZm
 
 
 def authenticate(*, session: Session, email: str, password: str) -> User | None:
+    """用邮箱+密码校验用户；成功返回 User，失败返回 None。* 表示仅允许关键字传参。"""
     db_user = get_user_by_email(session=session, email=email)
     if not db_user:
         # Prevent timing attacks by running password verification even when user doesn't exist
         # This ensures the response time is similar whether or not the email exists
+        # 用户不存在时也跑一次验密，避免靠响应时间判断邮箱是否注册
         verify_password(password, DUMMY_HASH)
         return None
     verified, updated_password_hash = verify_password(password, db_user.hashed_password)
     if not verified:
         return None
+    # 哈希算法升级时写回新 hash（如从旧算法迁移）
     if updated_password_hash:
         db_user.hashed_password = updated_password_hash
         session.add(db_user)

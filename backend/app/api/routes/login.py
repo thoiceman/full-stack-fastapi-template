@@ -22,11 +22,13 @@ router = APIRouter(tags=["login"])
 
 @router.post("/login/access-token")
 def login_access_token(
+    # session：依赖注入 DB；form_data：从 form 解析 username(邮箱)/password
     session: SessionDep, form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
 ) -> Token:
     """
     OAuth2 compatible token login, get an access token for future requests
     """
+    # OAuth2 表单：username 字段实际传邮箱；校验通过后签发 JWT
     user = crud.authenticate(
         session=session, email=form_data.username, password=form_data.password
     )
@@ -34,6 +36,7 @@ def login_access_token(
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    # 后续请求在 Header 带 Authorization: Bearer <access_token>
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return Token(
         access_token=security.create_access_token(
@@ -47,6 +50,8 @@ def test_token(current_user: CurrentUser) -> Any:
     """
     Test access token
     """
+    # 依赖注入：CurrentUser 会先跑 deps.get_current_user（验 Bearer JWT、查库）
+    # 通过后才进入本函数；这里只返回已鉴权的当前用户
     return current_user
 
 
@@ -99,7 +104,9 @@ def reset_password(session: SessionDep, body: NewPassword) -> Message:
 
 @router.post(
     "/password-recovery-html-content/{email}",
+    # 路由级依赖：仅超管可访问；结果不注入函数参数
     dependencies=[Depends(get_current_active_superuser)],
+    # 返回 HTML（邮件预览），不是 JSON
     response_class=HTMLResponse,
 )
 def recover_password_html_content(email: str, session: SessionDep) -> Any:
