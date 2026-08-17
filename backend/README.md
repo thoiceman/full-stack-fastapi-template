@@ -25,6 +25,11 @@ $ uv run fastapi dev
 
 The API is available at `http://localhost:8000`, with automatic interactive docs at `http://localhost:8000/docs`.
 
+Default superuser (from root `.env` / `FIRST_SUPERUSER*`):
+
+* Email: `admin@example.com`
+* Password: `root123456`
+
 ## General Workflow
 
 Run backend commands from `./backend/` with `uv run`. Make sure your editor uses the Python interpreter at `.venv/bin/python` in the project root.
